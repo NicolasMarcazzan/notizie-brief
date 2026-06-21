@@ -3,11 +3,14 @@ package com.notizie.app
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
+import androidx.glance.layout.Row
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
@@ -50,6 +53,17 @@ class NotizieWidget : GlanceAppWidget() {
                     }
                 } else {
                     Text("Configure the worker URL in the app to get started.")
+                }
+
+                Row(
+                    modifier = GlanceModifier.padding(top = 4),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "↻ Refresh",
+                        style = TextStyle(fontWeight = FontWeight.Bold),
+                        modifier = GlanceModifier.clickable(actionRunCallback<RefreshAction>())
+                    )
                 }
             }
         }

@@ -2,7 +2,11 @@
 .env
 worker/.env
 
-# Android build outputs
+# Config with internal IDs
+worker/wrangler.toml
+
+# Build outputs
+build/
 app/build/
 .gradle/
 local.properties

@@ -85,8 +85,7 @@ async function callGemini(
         contents: [{ parts: [{ text: user }] }],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2048,
-          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
         },
       }),
     }
@@ -98,30 +97,69 @@ async function callGemini(
   }
 
   const data: any = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidate = data?.candidates?.[0];
+  const finishReason = candidate?.finishReason;
+  const text = candidate?.content?.parts?.[0]?.text;
+
+  if (finishReason && finishReason !== "STOP") {
+    console.error(`Gemini finish reason: ${finishReason}`);
+  }
+
+  if (!text) {
+    const safety = JSON.stringify(candidate?.safetyRatings ?? []);
+    throw new Error(`No response from Gemini. finishReason=${finishReason} safety=${safety}`);
+  }
   if (!text) throw new Error("No response from Gemini");
 
-  return JSON.parse(text.replace(/```(json)?/g, "").trim());
+  const jsonBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonText = jsonBlock ? jsonBlock[1].trim() : text.trim();
+  const cleaned = jsonText
+    .replace(/\/\/.*$/gm, "")
+    .replace(/\n\s*/g, " ")
+    .replace(/,\s*]/g, "]");
+
+  const parsed = JSON.parse(cleaned);
+  if (!Array.isArray(parsed)) {
+    throw new Error("Gemini response is not an array");
+  }
+  return parsed as GeminiResponse;
+}
+
+async function buildBrief(env: Env): Promise<DailyBrief> {
+  const articles = await fetchAllFeeds();
+  const result = await callGemini(articles, env.GEMINI_API_KEY);
+  return {
+    date: new Date().toISOString().split("T")[0],
+    items: result,
+  };
 }
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log("Starting daily brief pipeline...");
-    const articles = await fetchAllFeeds();
-    console.log(`Fetched ${articles.length} articles after filtering`);
-
-    const result = await callGemini(articles, env.GEMINI_API_KEY);
-
-    const brief: DailyBrief = {
-      date: new Date().toISOString().split("T")[0],
-      items: result.items,
-    };
-
+    const brief = await buildBrief(env);
     await env.BRIEF_KV.put("daily-brief", JSON.stringify(brief));
     console.log("Brief stored in KV");
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/trigger") {
+      try {
+        const brief = await buildBrief(env);
+        await env.BRIEF_KV.put("daily-brief", JSON.stringify(brief));
+        return new Response(JSON.stringify({ ok: true, brief: { date: brief.date, items: brief.items } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ ok: false, error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const cached = await env.BRIEF_KV.get("daily-brief");
     if (!cached) {
       return new Response(JSON.stringify({ error: "No brief available yet" }), {
