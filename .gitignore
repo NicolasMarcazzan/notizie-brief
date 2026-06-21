@@ -1,0 +1,20 @@
+# Secrets
+.env
+worker/.env
+
+# Android build outputs
+app/build/
+.gradle/
+local.properties
+
+# Node / Worker
+worker/node_modules/
+worker/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
