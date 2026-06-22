@@ -48,9 +48,9 @@ The system SHALL produce 2-3 sentence summaries with no editorializing, framing,
 - **WHEN** a summary is generated
 - **THEN** it SHALL include the source publication name
 
-### Requirement: Gemini 2.0 Flash integration
-The system SHALL use the Google Gemini 2.0 Flash API for article selection and summarization.
+### Requirement: Groq Llama 3.3 70B integration
+The system SHALL use the Google Groq Llama 3.3 70B API for article selection and summarization.
 
 #### Scenario: API call
 - **WHEN** the prompt is ready with candidate articles
-- **THEN** a single API call to Gemini 2.0 Flash SHALL return 6 structured summaries
+- **THEN** a single API call to Groq Llama 3.3 70B SHALL return 6 structured summaries

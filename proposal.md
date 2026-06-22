@@ -4,7 +4,7 @@ Daily news consumption is overwhelming — engagement-driven algorithms push out
 
 ## What Changes
 
-- **Cloudflare Worker** fetching 12-15 RSS feeds daily at 07:00, pre-filtering routine tragedy/crime, and using **Gemini 2.0 Flash** to select and summarize the 6 most broadly-covered stories (max-entropy selection across ideologically diverse sources)
+- **Cloudflare Worker** fetching 12-15 RSS feeds daily at 07:00, pre-filtering routine tragedy/crime, and using **Groq Llama 3.3 70B** to select and summarize the 6 most broadly-covered stories (max-entropy selection across ideologically diverse sources)
 - **Android widget** (Jetpack Glance) displaying 2-3 sentence summaries on the home screen, refreshed daily via WorkManager
 - **Shared KV store** on Cloudflare Workers KV — multiple users (small group) share the same daily brief
 - **No political slant**: AI prompted for purely factual, neutral summaries. Conflict stories included only if they shift borders, alliances, trade, energy, or involve cross-national protests
@@ -24,7 +24,7 @@ None
 ## Impact
 
 - **New dependency**: Cloudflare Workers (free tier) + KV (free tier)
-- **New dependency**: Google Gemini API (free tier, API key required)
+- **New dependency**: Groq API (free tier, API key required)
 - **New code**: TypeScript Worker (~200 lines) and Kotlin Android app (~300 lines)
 - **Configuration**: wrangler.toml with secrets, build.gradle.kts with Glance dependencies
 - **No changes** to existing systems

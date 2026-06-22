@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { Article, DailyBrief, GeminiResponse } from "./types";
+import { Article, DailyBrief, LLMResponse } from "./types";
 import { FEEDS } from "./feeds";
 import { buildPrompt } from "./prompt";
 
@@ -8,7 +8,7 @@ const INCLUDE_PATTERNS = /\b(sanctions|trade|treaty|summit|protest|policy|econom
 
 interface Env {
   BRIEF_KV: KVNamespace;
-  GEMINI_API_KEY: string;
+  GROQ_API_KEY: string;
   ENVIRONMENT?: string;
 }
 
@@ -69,65 +69,75 @@ async function fetchAllFeeds(): Promise<Article[]> {
     .slice(0, 80);
 }
 
-async function callGemini(
+async function callGroq(
   articles: Article[],
   apiKey: string
-): Promise<GeminiResponse> {
+): Promise<LLMResponse> {
   const { system, user } = buildPrompt(articles);
 
   const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    "https://api.groq.com/openai/v1/chat/completions",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: system }] },
-        contents: [{ parts: [{ text: user }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-        },
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.3,
+        max_tokens: 8192,
       }),
     }
   );
 
   if (!resp.ok) {
     const err = await resp.text();
-    throw new Error(`Gemini API error (${resp.status}): ${err}`);
+    throw new Error(`Groq API error (${resp.status}): ${err}`);
   }
 
   const data: any = await resp.json();
-  const candidate = data?.candidates?.[0];
-  const finishReason = candidate?.finishReason;
-  const text = candidate?.content?.parts?.[0]?.text;
+  const choice = data?.choices?.[0];
+  const finishReason = choice?.finish_reason;
+  const text = choice?.message?.content;
 
-  if (finishReason && finishReason !== "STOP") {
-    console.error(`Gemini finish reason: ${finishReason}`);
+  if (finishReason && finishReason !== "stop") {
+    console.error(`Groq finish reason: ${finishReason}`);
   }
 
   if (!text) {
-    const safety = JSON.stringify(candidate?.safetyRatings ?? []);
-    throw new Error(`No response from Gemini. finishReason=${finishReason} safety=${safety}`);
+    throw new Error(`No response from Groq. finish_reason=${finishReason}`);
   }
-  if (!text) throw new Error("No response from Gemini");
 
   const jsonBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonText = jsonBlock ? jsonBlock[1].trim() : text.trim();
-  const cleaned = jsonText
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\n\s*/g, " ")
-    .replace(/,\s*]/g, "]");
 
-  const parsed = JSON.parse(cleaned);
-  if (!Array.isArray(parsed)) {
-    throw new Error("Gemini response is not an array");
+  const cleaned = jsonText
+    .replace(/\n\s*/g, " ")
+    .replace(/,\s*([\]}])/g, "$1");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (err: any) {
+    throw new Error(
+      `Failed to parse Groq JSON: ${err.message}. Raw text (first 500 chars): ${text.slice(0, 500)}`
+    );
   }
-  return parsed as GeminiResponse;
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Groq response is not an array. Got: ${JSON.stringify(parsed).slice(0, 300)}`);
+  }
+  return parsed as LLMResponse;
 }
 
 async function buildBrief(env: Env): Promise<DailyBrief> {
   const articles = await fetchAllFeeds();
-  const result = await callGemini(articles, env.GEMINI_API_KEY);
+  const result = await callGroq(articles, env.GROQ_API_KEY);
   return {
     date: new Date().toISOString().split("T")[0],
     items: result,
@@ -149,11 +159,13 @@ export default {
       try {
         const brief = await buildBrief(env);
         await env.BRIEF_KV.put("daily-brief", JSON.stringify(brief));
-        return new Response(JSON.stringify({ ok: true, brief: { date: brief.date, items: brief.items } }), {
+        // Same shape as GET / on purpose: the Android client decodes both
+        // responses as a bare DailyBrief, so don't wrap this in {ok, brief}.
+        return new Response(JSON.stringify(brief), {
           headers: { "Content-Type": "application/json" },
         });
       } catch (err: any) {
-        return new Response(JSON.stringify({ ok: false, error: err.message }), {
+        return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });

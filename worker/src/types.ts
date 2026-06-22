@@ -24,4 +24,4 @@ export interface FeedConfig {
   category: Article["category"];
 }
 
-export type GeminiResponse = BriefItem[];
+export type LLMResponse = BriefItem[];

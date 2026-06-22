@@ -7,7 +7,7 @@ Personal AI news widget delivering 6 curated summaries daily. Single-user (plus 
 **Goals:**
 - Fetch from 12-15 diverse RSS feeds daily
 - Pre-filter routine crime/tragedy without losing systemic/protest stories
-- Gemini 2.0 Flash selects top 6 by max-entropy coverage across sources
+- Groq Llama 3.3 70B selects top 6 by max-entropy coverage across sources
 - Return neutral, factual 2-3 sentence summaries
 - Display on Android homescreen via Jetpack Glance widget
 - Refresh once daily (07:00 UTC)
@@ -38,7 +38,7 @@ Personal AI news widget delivering 6 curated summaries daily. Single-user (plus 
   ├──► Stage 2: Build prompt with ~50-80 candidate articles
   │     (title + first 150 chars)
   │
-  ├──► Gemini 2.0 Flash → 6 structured summaries
+  ├──► Groq Llama 3.3 70B → 6 structured summaries
   │     Prompt: max-entropy, neutral, no editorializing
   │
   └──► Store in CF KV → served at /daily-brief.json
@@ -54,7 +54,7 @@ Android (07:05 via WorkManager)
 | Decision | Choice | Rationale | Alternatives Considered |
 |----------|--------|-----------|------------------------|
 | Backend runtime | **Cloudflare Workers (TypeScript)** | Free tier, cron built-in, global edge, KV included, no server management | Python FastAPI on Railway — more familiar but needs server, costs |
-| AI model | **Gemini 2.0 Flash** | Free (1500 req/day), 1M token context, excellent summarization, fast | GPT-4o mini (paid), Claude Haiku (paid), Groq/Llama (free but experimental) |
+| AI model | **Groq Llama 3.3 70B** | Free tier, fast inference, open-weight, 128K context | GPT-4o mini (paid), Claude Haiku (paid), Gemini Flash (free, used previously) |
 | News sourcing | **RSS feeds only** | Zero cost, wide coverage, simple parsing | News API (all paid at scale) |
 | Pre-filter approach | **Keyword rules + prompt instruction** | Two-stage: cheap deterministic filter first, then AI handles nuance | Pure ML filter (overkill), Pure prompt (more tokens on junk) |
 | Widget framework | **Jetpack Glance** | Declarative, Compose-like, modern Android widget standard | RemoteViews (legacy), UAMP (dead) |
@@ -66,8 +66,8 @@ Android (07:05 via WorkManager)
 | Risk | Mitigation |
 |------|------------|
 | RSS feed goes down or changes format | Monitor dead feeds via wrangler observability; fallback to skip + log |
-| Gemini API key exposure in git | `.gitignore` + `wrangler secret put` — API key never in source |
-| Gemini changes free tier terms | Model choice is abstracted — swap prompt format for another model |
+| Groq API key exposure in git | `.gitignore` + `wrangler secret put` — API key never in source |
+| Groq changes free tier terms | Model choice is abstracted — swap prompt format for another model |
 | Widget fetch fails if Worker is cold | KV is always-hot read; Worker cold start < 1s for Node-like runtime |
 | Android WorkManager delayed by OS battery optimization | Use `android:minInterval` with `PERIODIC` and accept up to 15min delay — news isn't time-critical |
 | Political slant in AI summaries | Prompt engineering + source diversity (Reuters left/right balanced, Al Jazeera for non-Western) |
